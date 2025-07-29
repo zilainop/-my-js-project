@@ -3,777 +3,135 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Workout Schedule</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <style>
-        :root {
-            --primary-color: #4a6baf;
-            --secondary-color: #3a5a9f;
-            --text-color: #333;
-            --light-text: #f8f9fa;
-            --background-color: #f8f9fa;
-            --card-bg: #ffffff;
-            --border-color: #dee2e6;
-            --success-color: #28a745;
-            --warning-color: #ffc107;
-            --danger-color: #dc3545;
-            --animation-duration: 2s;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-
-        body {
-            background-color: var(--background-color);
-            color: var(--text-color);
-            line-height: 1.6;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 600px;
-            margin: 0 auto;
-            background-color: var(--card-bg);
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            padding: 20px;
-            position: relative;
-        }
-
-        header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        h1 {
-            color: var(--primary-color);
-            font-size: 24px;
-        }
-
-        #settings-btn {
-            background: none;
-            border: none;
-            font-size: 20px;
-            color: var(--primary-color);
-            cursor: pointer;
-            padding: 5px;
-            border-radius: 50%;
-            width: 36px;
-            height: 36px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.3s;
-        }
-
-        #settings-btn:hover {
-            background-color: rgba(74, 107, 175, 0.1);
-        }
-
-        .current-task {
-            background-color: var(--primary-color);
-            color: var(--light-text);
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            text-align: center;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        }
-
-        .current-task h2 {
-            margin-bottom: 10px;
-            font-size: 18px;
-            opacity: 0.9;
-        }
-
-        .task-name {
-            font-size: 24px;
-            font-weight: bold;
-            margin-bottom: 10px;
-        }
-
-        .task-time {
-            font-size: 18px;
-            opacity: 0.9;
-            margin-top: 5px;
-        }
-
-        .current-task .task-time {
-            font-size: 20px;
-            font-weight: bold;
-            color: white;
-        }
-
-        .progress-timer {
-            width: 120px;
-            height: 120px;
-            margin: 0 auto 20px;
-            position: relative;
-        }
-
-        .progress-timer-svg {
-            width: 100%;
-            height: 100%;
-            transform: rotate(-90deg);
-        }
-
-        .progress-timer-circle {
-            fill: none;
-            stroke-width: 8;
-            stroke-linecap: round;
-        }
-
-        .progress-timer-circle-bg {
-            stroke: #f0f0f0;
-            stroke-dasharray: 314;
-            stroke-dashoffset: 0;
-        }
-
-        .progress-timer-circle-fill {
-            stroke: var(--success-color);
-            stroke-dasharray: 314;
-            transition: stroke-dashoffset 1s linear;
-        }
-
-        .progress-timer-text {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 18px;
-            font-weight: bold;
-            color: var(--text-color);
-            text-align: center;
-        }
-
-        .next-task {
-            background-color: var(--card-bg);
-            border: 1px solid var(--border-color);
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-
-        .next-task h3 {
-            color: var(--primary-color);
-            margin-bottom: 10px;
-            font-size: 16px;
-        }
-
-        .next-task .task-name {
-            font-size: 18px;
-            color: var(--text-color);
-        }
-
-        .next-task .task-time {
-            font-size: 16px;
-            color: var(--text-color);
-            opacity: 0.9;
-        }
-
-        .action-btn {
-            width: 100%;
-            padding: 12px;
-            background-color: var(--primary-color);
-            color: white;
-            border: none;
-            border-radius: 5px;
-            font-size: 16px;
-            cursor: pointer;
-            transition: background-color 0.3s;
-        }
-
-        .action-btn:hover {
-            background-color: var(--secondary-color);
-        }
-
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 1;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            overflow: auto;
-            background-color: rgba(0, 0, 0, 0.4);
-        }
-
-        .modal-content {
-            background-color: var(--card-bg);
-            margin: 5% auto;
-            padding: 20px;
-            border-radius: 8px;
-            width: 90%;
-            max-width: 600px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-            max-height: 80vh;
-            overflow-y: auto;
-        }
-
-        .close {
-            color: #aaa;
-            float: right;
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-
-        .close:hover {
-            color: var(--text-color);
-        }
-
-        .form-group {
-            margin-bottom: 15px;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: 500;
-        }
-
-        .form-group input[type="color"],
-        .form-group input[type="range"],
-        .form-group select {
-            width: 100%;
-            padding: 8px;
-            border-radius: 4px;
-            border: 1px solid var(--border-color);
-        }
-
-        .time-input-container {
-            display: flex;
-            flex: 1;
-        }
-
-        .time-input-container input {
-            flex: 2;
-            border-top-right-radius: 0;
-            border-bottom-right-radius: 0;
-            border-right: none;
-        }
-
-        .time-input-container select {
-            flex: 1;
-            border-top-left-radius: 0;
-            border-bottom-left-radius: 0;
-            padding: 8px;
-            border: 1px solid var(--border-color);
-            background-color: white;
-        }
-
-        .time-slot {
-            display: flex;
-            gap: 5px;
-            margin-bottom: 10px;
-            align-items: center;
-        }
-
-        .time-slot input[type="text"] {
-            flex: 3;
-        }
-
-        .delete-slot {
-            background-color: var(--danger-color);
-            color: white;
-            border: none;
-            border-radius: 4px;
-            padding: 8px;
-            cursor: pointer;
-        }
-
-        @keyframes blink {
-            0% { opacity: 1; }
-            50% { opacity: 0.5; }
-            100% { opacity: 1; }
-        }
-
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.02); }
-            100% { transform: scale(1); }
-        }
-
-        .blink {
-            animation: blink var(--animation-duration) infinite;
-        }
-
-        .pulse {
-            animation: pulse var(--animation-duration) infinite;
-        }
-
-        @media (max-width: 480px) {
-            .container {
-                padding: 15px;
-            }
-
-            .current-task .task-name {
-                font-size: 20px;
-            }
-
-            .task-time {
-                font-size: 16px;
-            }
-
-            .progress-timer {
-                width: 100px;
-                height: 100px;
-            }
-
-            .progress-timer-text {
-                font-size: 16px;
-            }
-        }
-    </style>
+    <title>Task Timer & Tracker</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>My Daily Schedule</h1>
-            <button id="settings-btn"><i class="fas fa-cog"></i></button>
-        </header>
+        <!-- Section One: Clock, Current Task, Next Task, Settings -->
+        <section class="section-one">
+            <div class="clock-container">
+                <div class="clock">
+                    <div class="clock-display" id="clock-display">00:00:00</div>
+                </div>
+            </div>
 
-        <div class="current-task">
-            <h2>Current Task</h2>
-            <div id="current-task-name" class="task-name blink">Loading...</div>
-            <div id="current-task-time" class="task-time">Time left: 00:00:00</div>
-        </div>
+            <div class="task-info">
+                <div class="current-task-display">
+                    <span id="current-task-name" class="blinking">No Task Selected</span>
+                </div>
+                <div class="controls">
+                    <button id="next-task-btn">Next Task</button>
+                    <button id="settings-btn">Settings</button>
+                </div>
+            </div>
 
-        <div class="progress-timer">
-            <svg class="progress-timer-svg" viewBox="0 0 120 120">
-                <circle class="progress-timer-circle progress-timer-circle-bg" cx="60" cy="60" r="50"></circle>
-                <circle class="progress-timer-circle progress-timer-circle-fill" cx="60" cy="60" r="50"></circle>
-            </svg>
-            <div class="progress-timer-text" id="progress-timer-text">00:00</div>
-        </div>
+            <!-- Real-Time Clock -->
+            <div class="real-time-clock-container">
+                <div class="analog-clock">
+                    <div class="clock-face">
+                        <div class="hand hour-hand" id="hour-hand"></div>
+                        <div class="hand minute-hand" id="minute-hand"></div>
+                        <div class="hand second-hand" id="second-hand"></div>
+                        <div class="digital-clock" id="digital-clock">12:00 AM</div>
+                        <!-- Clock face numbers -->
+                        <div class="clock-number number-12">12</div>
+                        <div class="clock-number number-1">1</div>
+                        <div class="clock-number number-2">2</div>
+                        <div class="clock-number number-3">3</div>
+                        <div class="clock-number number-4">4</div>
+                        <div class="clock-number number-5">5</div>
+                        <div class="clock-number number-6">6</div>
+                        <div class="clock-number number-7">7</div>
+                        <div class="clock-number number-8">8</div>
+                        <div class="clock-number number-9">9</div>
+                        <div class="clock-number number-10">10</div>
+                        <div class="clock-number number-11">11</div>
+                    </div>
+                </div>
+            </div>
+        </section>
 
-        <div class="next-task">
-            <h3>Up Next</h3>
-            <div id="next-task-name" class="task-name">Loading...</div>
-            <div id="next-task-time" class="task-time">Starts at 00:00:00</div>
-        </div>
+        <!-- New Section: Best Record Display -->
+        <section class="section-best-record">
+            <h2>Best Record</h2>
+            <div class="best-record">
+                <span id="best-record-display">--:--:--</span>
+            </div>
+        </section>
 
-        <button id="next-btn" class="action-btn">Next Task</button>
-
-        <audio id="alarm-sound" src="https://assets.mixkit.co/sfx/preview/mixkit-alarm-digital-clock-beep-989.mp3" preload="auto"></audio>
+        <!-- Section Two: Task List -->
+        <section class="section-two">
+            <h2>Your Tasks</h2>
+            <ul id="task-list">
+                <!-- Tasks will be dynamically added here by JavaScript -->
+            </ul>
+            <div class="add-task-container">
+                <input type="text" id="new-task-input" placeholder="Add a new task">
+                <button id="add-task-btn">Add Task</button>
+            </div>
+        </section>
     </div>
 
+    <!-- Settings Modal (initially hidden) -->
     <div id="settings-modal" class="modal">
         <div class="modal-content">
-            <span class="close">×</span>
+            <span class="close-button">×</span>
             <h2>Settings</h2>
-            <div class="form-group">
-                <label for="primary-color">Primary Color:</label>
-                <input type="color" id="primary-color" value="#4a6baf">
+            <div class="setting-group">
+                <h3>Task Management</h3>
+                <div id="settings-task-list" class="sortable-list">
+                    <!-- Tasks for renaming/reordering will go here -->
+                </div>
+                <button id="save-task-order-btn">Save Task Order</button>
             </div>
-            <div class="form-group">
-                <label for="secondary-color">Secondary Color:</label>
-                <input type="color" id="secondary-color" value="#3a5a9f">
+
+            <div class="setting-group">
+                <h3>Display Customization</h3>
+                <label for="blink-speed">Blink Speed (ms):</label>
+                <input type="number" id="blink-speed" value="500" min="0">
+                <label for="disable-blink">Disable Blinking:</label>
+                <input type="checkbox" id="disable-blink">
             </div>
-            <div class="form-group">
-                <label for="animation-speed">Animation Speed:</label>
-                <select id="animation-speed">
-                    <option value="slow">Slow</option>
-                    <option value="normal" selected>Normal</option>
-                    <option value="fast">Fast</option>
-                </select>
+
+            <div class="setting-group">
+                <h3>Break Times</h3>
+                <div id="break-times-container">
+                    <!-- Break time inputs will be added here -->
+                </div>
+                <button id="add-break-time-btn">Add Break Time</button>
             </div>
-            <div class="form-group">
-                <label for="alarm-volume">Alarm Volume:</label>
-                <input type="range" id="alarm-volume" min="0" max="1" step="0.1" value="0.7">
+
+            <div class="setting-group">
+                <h3>Color Customization</h3>
+                <label for="bg-color-section1">Section 1 Background:</label>
+                <input type="color" id="bg-color-section1" value="#f0f0f0"><br>
+
+                <label for="bg-color-section2">Section 2 Background:</label>
+                <input type="color" id="bg-color-section2" value="#e0e0e0"><br>
+
+                <label for="text-color">Text Color:</label>
+                <input type="color" id="text-color" value="#333333"><br>
+
+                <label for="border-color">Border Color:</label>
+                <input type="color" id="border-color" value="#cccccc"><br>
+
+                <div id="task-color-settings">
+                    <h4>Task Specific Colors</h4>
+                    <!-- Task color inputs will be dynamically added -->
+                </div>
             </div>
-            <h3>Edit Schedule</h3>
-            <div id="schedule-editor"></div>
-            <button id="add-time-slot" class="action-btn">Add Time Slot</button>
-            <button id="save-settings" class="action-btn">Save Settings</button>
-            <button id="reset-defaults" class="action-btn">Reset to Defaults</button>
+            
+            <div class="setting-group">
+                <h3>Danger Zone</h3>
+                <button id="reset-all-data-btn" style="background-color: #dc3545;">Reset All Data</button>
+                <p style="font-size: 0.9em; color: #666; margin-top: 5px;">Warning: This will clear all tasks, settings, and records.</p>
+            </div>
+
+            <button id="save-settings-btn">Save Settings</button>
         </div>
     </div>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Default schedule
-            const defaultSchedule = [
-                { start: "01:00 AM", end: "02:00 AM", task: "Upload and Schedule" },
-                { start: "03:00 AM", end: "05:00 AM", task: "Sourcing for YT Channels, IG, TikTok, X & Other" },
-                { start: "05:00 AM", end: "07:00 AM", task: "Nap" },
-                { start: "07:00 AM", end: "09:00 AM", task: "Coding" },
-                { start: "09:00 AM", end: "10:00 AM", task: "Break (Exercise/Nap/Game)" },
-                { start: "10:00 AM", end: "12:00 PM", task: "AZ Foot 11 (3 to 5 Shorts)" },
-                { start: "12:00 PM", end: "01:00 PM", task: "Break (Exercise/Nap/Game)" },
-                { start: "01:00 PM", end: "03:00 PM", task: "Explained (3 to 5 Shorts)" },
-                { start: "03:00 PM", end: "04:00 PM", task: "Break (Exercise/Nap/Game)" },
-                { start: "04:00 PM", end: "08:00 PM", task: "Narrator / Edit Project" },
-                { start: "08:00 PM", end: "09:00 PM", task: "Break (Exercise/Nap/Game)" },
-                { start: "09:00 PM", end: "10:00 PM", task: "Football & Explained Long, Compilate AZ & Explained" },
-                { start: "10:00 PM", end: "01:00 AM", task: "Sleep" }
-            ];
-
-            // DOM elements
-            const elements = {
-                currentTaskName: document.getElementById('current-task-name'),
-                currentTaskTime: document.getElementById('current-task-time'),
-                nextTaskName: document.getElementById('next-task-name'),
-                nextTaskTime: document.getElementById('next-task-time'),
-                progressTimerText: document.getElementById('progress-timer-text'),
-                progressCircleFill: document.querySelector('.progress-timer-circle-fill'),
-                settingsBtn: document.getElementById('settings-btn'),
-                settingsModal: document.getElementById('settings-modal'),
-                closeBtn: document.querySelector('.close'),
-                primaryColor: document.getElementById('primary-color'),
-                secondaryColor: document.getElementById('secondary-color'),
-                animationSpeed: document.getElementById('animation-speed'),
-                alarmVolume: document.getElementById('alarm-volume'),
-                scheduleEditor: document.getElementById('schedule-editor'),
-                addTimeSlotBtn: document.getElementById('add-time-slot'),
-                saveSettingsBtn: document.getElementById('save-settings'),
-                resetDefaultsBtn: document.getElementById('reset-defaults'),
-                alarmSound: document.getElementById('alarm-sound'),
-                nextBtn: document.getElementById('next-btn')
-            };
-
-            // App state
-            const state = {
-                schedule: [],
-                currentTaskIndex: -1,
-                alarmInterval: null,
-                isAlarmPlaying: false,
-                alarmTimeout: null,
-                updateInterval: null
-            };
-
-            // Initialize the app
-            function init() {
-                loadSettings();
-                updateCurrentTask();
-                state.updateInterval = setInterval(updateCurrentTask, 1000);
-
-                // Event listeners
-                elements.settingsBtn.addEventListener('click', openSettings);
-                elements.closeBtn.addEventListener('click', closeSettings);
-                elements.nextBtn.addEventListener('click', manuallyAdvanceTask);
-                elements.addTimeSlotBtn.addEventListener('click', addEmptyTimeSlot);
-                elements.saveSettingsBtn.addEventListener('click', saveSettings);
-                elements.resetDefaultsBtn.addEventListener('click', resetToDefaults);
-                elements.alarmSound.addEventListener('canplaythrough', () => console.log('Alarm ready'));
-            }
-
-            // Time conversion functions
-            function convertTo24Hour(time12) {
-                const [time, period] = time12.split(' ');
-                let [hours, minutes] = time.split(':').map(Number);
-                if (period === 'PM' && hours !== 12) hours += 12;
-                if (period === 'AM' && hours === 12) hours = 0;
-                return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
-            }
-
-            function convertTo12Hour(time24) {
-                const [hours, minutes] = time24.split(':').map(Number);
-                const period = hours >= 12 ? 'PM' : 'AM';
-                const hours12 = hours % 12 || 12;
-                return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
-            }
-
-            function formatFullTime(totalSeconds) {
-                const hours = Math.floor(totalSeconds / 3600);
-                const minutes = Math.floor((totalSeconds % 3600) / 60);
-                const seconds = totalSeconds % 60;
-                return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-            }
-
-            function formatShortTime(totalSeconds) {
-                const minutes = Math.floor(totalSeconds / 60);
-                const seconds = totalSeconds % 60;
-                return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-            }
-
-            function timeToSeconds(timeStr) {
-                const [hours, minutes, seconds] = timeStr.split(':').map(Number);
-                return hours * 3600 + minutes * 60 + seconds;
-            }
-
-            function getCurrentTimeInSeconds() {
-                const now = new Date();
-                return now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
-            }
-
-            // Timer functions
-            function updateProgressCircle(elapsed, total) {
-                const circumference = 314;
-                const offset = circumference - (circumference * (elapsed / total));
-                elements.progressCircleFill.style.strokeDashoffset = offset;
-            }
-
-            function findCurrentTask() {
-                const currentTime = getCurrentTimeInSeconds();
-                for (let i = 0; i < state.schedule.length; i++) {
-                    const task = state.schedule[i];
-                    const start = timeToSeconds(convertTo24Hour(task.start));
-                    let end = timeToSeconds(convertTo24Hour(task.end));
-                    if (end <= start) end += 24 * 3600;
-                    let adjustedTime = currentTime;
-                    if (end > 24 * 3600 && currentTime < start) {
-                        adjustedTime += 24 * 3600;
-                    }
-                    if (adjustedTime >= start && adjustedTime < end) {
-                        return { index: i, start, end, task: task.task, current: adjustedTime };
-                    }
-                }
-                return null;
-            }
-
-            function updateCurrentTask() {
-                const currentTask = findCurrentTask();
-                if (currentTask) {
-                    const totalSeconds = currentTask.end - currentTask.start;
-                    const elapsedSeconds = currentTask.current - currentTask.start;
-                    const remainingSeconds = totalSeconds - elapsedSeconds;
-
-                    elements.currentTaskName.textContent = currentTask.task;
-                    elements.currentTaskTime.textContent = `Time left: ${formatFullTime(remainingSeconds)}`;
-                    elements.progressTimerText.textContent = formatShortTime(remainingSeconds);
-                    updateProgressCircle(elapsedSeconds, totalSeconds);
-
-                    const nextIndex = (currentTask.index + 1) % state.schedule.length;
-                    const nextTask = state.schedule[nextIndex];
-                    let nextStart = timeToSeconds(convertTo24Hour(nextTask.start));
-                    if (nextStart <= timeToSeconds(convertTo24Hour(state.schedule[currentTask.index].end))) {
-                        nextStart += 24 * 3600;
-                    }
-                    const nextStartsIn = nextStart - currentTask.current;
-
-                    elements.nextTaskName.textContent = nextTask.task;
-                    elements.nextTaskTime.textContent = `Starts at ${convertTo12Hour(formatFullTime(nextStart))}`;
-
-                    if (state.currentTaskIndex !== currentTask.index) {
-                        state.currentTaskIndex = currentTask.index;
-                        stopAlarm();
-                        setAlarm(remainingSeconds * 1000);
-                        updateTaskAnimation(remainingSeconds);
-                    }
-                } else {
-                    resetTaskDisplay();
-                }
-            }
-
-            function resetTaskDisplay() {
-                elements.currentTaskName.textContent = 'No scheduled task';
-                elements.currentTaskTime.textContent = 'Time left: 00:00:00';
-                elements.progressTimerText.textContent = '00:00';
-                elements.progressCircleFill.style.strokeDashoffset = 314;
-                elements.nextTaskName.textContent = state.schedule[0]?.task || 'No tasks';
-                elements.nextTaskTime.textContent = `Starts at ${state.schedule[0]?.start || '00:00 AM'}`;
-            }
-
-            function updateTaskAnimation(remainingSeconds) {
-                elements.currentTaskName.classList.remove('blink', 'pulse');
-                const remainingMinutes = remainingSeconds / 60;
-                if (remainingMinutes <= 5) {
-                    elements.currentTaskName.classList.add('blink');
-                } else if (remainingMinutes <= 15) {
-                    elements.currentTaskName.classList.add('pulse');
-                } else {
-                    elements.currentTaskName.classList.add('blink');
-                }
-                updateAnimationSpeed();
-            }
-
-            // Alarm functions
-            function setAlarm(delay) {
-                stopAlarm();
-                state.alarmTimeout = setTimeout(startAlarm, delay);
-            }
-
-            function startAlarm() {
-                if (!state.isAlarmPlaying) {
-                    state.isAlarmPlaying = true;
-                    elements.alarmSound.currentTime = 0;
-                    elements.alarmSound.play().catch(e => console.error('Alarm error:', e));
-                    state.alarmInterval = setInterval(() => {
-                        elements.alarmSound.currentTime = 0;
-                        elements.alarmSound.play().catch(e => console.error('Alarm error:', e));
-                    }, 120000);
-                }
-            }
-
-            function stopAlarm() {
-                if (state.alarmTimeout) clearTimeout(state.alarmTimeout);
-                if (state.alarmInterval) clearInterval(state.alarmInterval);
-                if (state.isAlarmPlaying) {
-                    elements.alarmSound.pause();
-                    state.isAlarmPlaying = false;
-                }
-            }
-
-            function manuallyAdvanceTask() {
-                stopAlarm();
-                state.currentTaskIndex = (state.currentTaskIndex + 1) % state.schedule.length;
-                updateCurrentTask();
-            }
-
-            // Settings functions
-            function loadSettings() {
-                const saved = localStorage.getItem('scheduleSettings');
-                if (saved) {
-                    const settings = JSON.parse(saved);
-                    if (settings.colors) {
-                        applyColors(settings.colors.primary, settings.colors.secondary);
-                    }
-                    if (settings.animationSpeed) {
-                        elements.animationSpeed.value = settings.animationSpeed;
-                    }
-                    if (settings.alarmVolume !== undefined) {
-                        elements.alarmVolume.value = settings.alarmVolume;
-                        elements.alarmSound.volume = settings.alarmVolume;
-                    }
-                    state.schedule = validateSchedule(settings.schedule) || [...defaultSchedule];
-                } else {
-                    state.schedule = [...defaultSchedule];
-                }
-                populateScheduleEditor();
-            }
-
-            function saveSettings() {
-                const newSchedule = getScheduleFromEditor();
-                if (newSchedule.length === 0) {
-                    alert('Please add at least one time slot');
-                    return;
-                }
-
-                const settings = {
-                    colors: {
-                        primary: elements.primaryColor.value,
-                        secondary: elements.secondaryColor.value
-                    },
-                    animationSpeed: elements.animationSpeed.value,
-                    alarmVolume: parseFloat(elements.alarmVolume.value),
-                    schedule: newSchedule
-                };
-
-                localStorage.setItem('scheduleSettings', JSON.stringify(settings));
-                applyColors(settings.colors.primary, settings.colors.secondary);
-                elements.alarmSound.volume = settings.alarmVolume;
-                state.schedule = newSchedule;
-                updateCurrentTask();
-                closeSettings();
-            }
-
-            function resetToDefaults() {
-                if (confirm('Reset to default settings?')) {
-                    localStorage.removeItem('scheduleSettings');
-                    elements.primaryColor.value = '#4a6baf';
-                    elements.secondaryColor.value = '#3a5a9f';
-                    elements.animationSpeed.value = 'normal';
-                    elements.alarmVolume.value = 0.7;
-                    loadSettings();
-                }
-            }
-
-            function applyColors(primary, secondary) {
-                document.documentElement.style.setProperty('--primary-color', primary);
-                document.documentElement.style.setProperty('--secondary-color', secondary);
-            }
-
-            function validateSchedule(schedule) {
-                return schedule.filter(slot => {
-                    try {
-                        return slot.task &&
-                            !isNaN(timeToSeconds(convertTo24Hour(slot.start))) &&
-                            !isNaN(timeToSeconds(convertTo24Hour(slot.end)));
-                    } catch (e) {
-                        return false;
-                    }
-                });
-            }
-
-            function updateAnimationSpeed() {
-                const speed = {
-                    slow: '10s',
-                    fast: '2s',
-                    normal: '5s'
-                }[elements.animationSpeed.value] || '2s';
-                document.documentElement.style.setProperty('--animation-duration', speed);
-            }
-
-            // Schedule editor functions
-            function populateScheduleEditor() {
-                elements.scheduleEditor.innerHTML = '';
-                state.schedule.forEach(slot => addTimeSlotToEditor(slot.start, slot.end, slot.task));
-            }
-
-            function addTimeSlotToEditor(start, end, task) {
-                const slot = document.createElement('div');
-                slot.className = 'time-slot';
-                const startContainer = createTimeInput(start, 'start');
-                const endContainer = createTimeInput(end, 'end');
-                const taskInput = document.createElement('input');
-                taskInput.type = 'text';
-                taskInput.value = task;
-                taskInput.placeholder = 'Task description';
-                const deleteBtn = document.createElement('button');
-                deleteBtn.className = 'delete-slot';
-                deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
-                deleteBtn.addEventListener('click', () => slot.remove());
-                slot.append(startContainer, endContainer, taskInput, deleteBtn);
-                elements.scheduleEditor.appendChild(slot);
-            }
-
-            function createTimeInput(time12, type) {
-                const [time, period] = time12.split(' ');
-                const container = document.createElement('div');
-                container.className = 'time-input-container';
-                const input = document.createElement('input');
-                input.type = 'text';
-                input.value = time;
-                input.placeholder = 'HH:MM';
-                input.dataset.type = type;
-                const select = document.createElement('select');
-                select.innerHTML = `<option value="AM">AM</option><option value="PM">PM</option>`;
-                select.value = period;
-                container.append(input, select);
-                return container;
-            }
-
-            function addEmptyTimeSlot() {
-                addTimeSlotToEditor('12:00 AM', '01:00 AM', 'New Task');
-            }
-
-            function getScheduleFromEditor() {
-                return Array.from(document.querySelectorAll('.time-slot'))
-                    .map(slot => {
-                        const inputs = slot.querySelectorAll('input[type="text"]');
-                        const selects = slot.querySelectorAll('select');
-                        return {
-                            start: `${inputs[0].value} ${selects[0].value}`,
-                            end: `${inputs[1].value} ${selects[1].value}`,
-                            task: inputs[2].value.trim()
-                        };
-                    })
-                    .filter(slot => slot.task && slot.start && slot.end)
-                    .sort((a, b) => timeToSeconds(convertTo24Hour(a.start)) - timeToSeconds(convertTo24Hour(b.start)));
-            }
-
-            function openSettings() {
-                elements.settingsModal.style.display = 'block';
-            }
-
-            function closeSettings() {
-                elements.settingsModal.style.display = 'none';
-            }
-
-            // Start the app
-            init();
-        });
-    </script>
+    <script src="script.js"></script>
 </body>
 </html>
