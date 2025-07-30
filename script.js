@@ -33,14 +33,20 @@ const INITIAL_DEFAULT_SETTINGS = {
 // --- Global State Variables ---
 let tasks = [];
 let currentTaskIndex = -1;
-let breakCheckIntervalId = null;
+let mainLoopIntervalId = null;
 let currentTaskStartTime = 0; // Timestamp when the task started (real-world time)
-let accumulatedTimeBeforeLastStart = 0; // Time accumulated before pause/break
-let isPaused = false;
+let accumulatedTimeBeforeLastStart = 0; // Time accumulated before pause/resume
+let isPaused = false; // Tracks if the user has manually paused the timer
 let blinkIntervalId = null;
 let settings = {};
-let isCurrentlyInBreak = false;
+let isCurrentlyInBreak = false; // Tracks if the *current real time* is within a defined break period
 let currentBreakName = '';
+
+// Global variables for break feature (independent from manual pause)
+let breakCountdownIntervalId = null;
+let currentBreakInstanceStartMs = 0; // The timestamp when the current active break instance started
+let currentBreakInstanceEndMs = 0; // The timestamp when the current active break instance is scheduled to end
+let previousMainLoopTime = 0; // Timestamp of the last time updateMainDisplay ran, for accurate deduction
 
 // --- DOM Elements ---
 const clockDisplay = document.getElementById('clock-display');
@@ -74,6 +80,12 @@ const minuteHand = document.getElementById('minute-hand');
 const secondHand = document.getElementById('second-hand');
 const digitalClock = document.getElementById('digital-clock');
 
+// New DOM elements for break display
+const breakInfoDisplay = document.getElementById('break-info-display');
+const breakCountdownName = document.getElementById('break-countdown-name');
+const breakCountdownTimer = document.getElementById('break-countdown-timer');
+const breakProgressBar = document.getElementById('break-progress-bar');
+
 // --- Utility Functions ---
 
 /**
@@ -93,62 +105,17 @@ function formatTime(ms) {
 }
 
 /**
- * Calculates the total duration of breaks between startTime and currentTime.
- * FIX 2: Improved logic to correctly handle partial overlaps where startTime or currentTime
- * fall within a break period, and breaks spanning across multiple days.
- * @param {number} startTime - Timestamp when the task started.
- * @param {number} currentTime - Current timestamp.
- * @returns {number} Total break time in milliseconds.
- */
-function calculateTotalBreakTime(startTime, currentTime) {
-    let totalBreakTime = 0;
-    // Normalize to the start of the day for robust iteration
-    const startOfDayMs = new Date(startTime).setHours(0, 0, 0, 0);
-    const endOfDayMs = new Date(currentTime).setHours(0, 0, 0, 0);
-    const oneDayMs = 24 * 60 * 60 * 1000;
-
-    for (const breakTime of settings.breakTimes) {
-        const [startHour, startMinute] = breakTime.start.split(':').map(Number);
-        const [endHour, endMinute] = breakTime.end.split(':').map(Number);
-
-        // Iterate through each day that potentially contains the task's active period
-        // Loop from the day *before* startTime to the day *after* currentTime
-        // to correctly catch breaks that cross midnight at the boundaries of the task's duration.
-        for (let currentDayTimestamp = startOfDayMs - oneDayMs; currentDayTimestamp <= endOfDayMs + oneDayMs; currentDayTimestamp += oneDayMs) {
-            let breakStartToday = currentDayTimestamp + (startHour * 60 + startMinute) * 60 * 1000;
-            let breakEndToday = currentDayTimestamp + (endHour * 60 + endMinute) * 60 * 1000;
-
-            // Handle overnight breaks (e.g., 23:00 to 01:00)
-            if (startHour * 60 + startMinute >= endHour * 60 + endMinute) {
-                breakEndToday += oneDayMs; // Add a day to the end time
-            }
-
-            // Calculate the overlap between the current break instance and the task's active period [startTime, currentTime]
-            const overlapStart = Math.max(startTime, breakStartToday);
-            const overlapEnd = Math.min(currentTime, breakEndToday);
-
-            // If there's a valid overlap, add its duration to totalBreakTime
-            if (overlapEnd > overlapStart) {
-                totalBreakTime += (overlapEnd - overlapStart);
-            }
-        }
-    }
-    return totalBreakTime;
-}
-
-/**
- * Calculates the current elapsed time for the active task based on real-world time.
+ * Calculates the current raw elapsed time for the active task based on real-world time.
+ * This time includes any break periods if the timer is currently running.
  * @returns {number} Elapsed time in milliseconds.
  */
 function calculateElapsedTime() {
-    if (isPaused || currentTaskIndex === -1 || isCurrentlyInBreak || currentTaskStartTime === 0) {
+    // The main clock pauses only if `isPaused` (user's manual pause) is true.
+    if (isPaused || currentTaskIndex === -1 || currentTaskStartTime === 0) {
         return accumulatedTimeBeforeLastStart;
     }
-
     const currentTime = Date.now();
-    const totalTimeSinceStart = currentTime - currentTaskStartTime;
-    const breakTime = calculateTotalBreakTime(currentTaskStartTime, currentTime);
-    return totalTimeSinceStart - breakTime + accumulatedTimeBeforeLastStart;
+    return currentTime - currentTaskStartTime + accumulatedTimeBeforeLastStart;
 }
 
 /**
@@ -158,7 +125,7 @@ function saveState() {
     settings.currentTaskIndex = currentTaskIndex;
     settings.currentTaskStartTime = currentTaskStartTime;
     settings.accumulatedTimeBeforeLastStart = accumulatedTimeBeforeLastStart;
-    settings.isPaused = isPaused;
+    settings.isPaused = isPaused; // Save the current manual pause state
 
     localStorage.setItem('tasks', JSON.stringify(tasks));
     localStorage.setItem('settings', JSON.stringify(settings));
@@ -192,7 +159,6 @@ function loadState() {
             end: bt.end,
             name: bt.name || 'Unnamed Break'
         }));
-        // Ensure colors.taskSpecific is an object, not null/undefined
         settings.colors.taskSpecific = settings.colors.taskSpecific || {};
 
         currentTaskIndex = settings.currentTaskIndex !== undefined ? settings.currentTaskIndex : -1;
@@ -207,12 +173,7 @@ function loadState() {
         isPaused = settings.isPaused;
     }
 
-    if (currentTaskIndex !== -1 && !isPaused && !getCurrentBreak() && currentTaskStartTime !== 0) {
-        console.log("Resuming task on load:", tasks[currentTaskIndex]?.name);
-    } else if (getCurrentBreak()) {
-        isCurrentlyInBreak = true;
-        currentBreakName = getCurrentBreak().name;
-    }
+    previousMainLoopTime = Date.now(); // Set for the first deduction calculation
 }
 
 /**
@@ -242,118 +203,212 @@ function updateRealTimeClock() {
 
 /**
  * Checks if current time is within any defined break period.
- * @returns {object | null} The break object if currently in a break, null otherwise.
+ * Returns the break object and its specific start/end timestamps for the current day/overnight instance.
+ * @returns {{break: object, startMs: number, endMs: number} | null} The break object and its timestamps, or null.
  */
 function getCurrentBreak() {
-    const now = new Date();
-    const currentTotalMinutes = now.getHours() * 60 + now.getMinutes();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // Start of today
+    const now = Date.now();
+    const nowObj = new Date(now);
+    const todayAtMidnight = new Date(nowObj.getFullYear(), nowObj.getMonth(), nowObj.getDate()).getTime();
 
     for (const breakTime of settings.breakTimes) {
         const [startHour, startMinute] = breakTime.start.split(':').map(Number);
         const [endHour, endMinute] = breakTime.end.split(':').map(Number);
 
-        let breakStartMs = today.getTime() + (startHour * 60 + startMinute) * 60 * 1000;
-        let breakEndMs = today.getTime() + (endHour * 60 + endMinute) * 60 * 1000;
+        let breakStartCandidateMs = todayAtMidnight + (startHour * 60 + startMinute) * 60 * 1000;
+        let breakEndCandidateMs = todayAtMidnight + (endHour * 60 + endMinute) * 60 * 1000;
 
-        // Handle overnight breaks (e.g., start 23:00, end 01:00)
-        if (startHour * 60 + startMinute >= endHour * 60 + endMinute) {
-            breakEndMs += 24 * 60 * 60 * 1000; // Add a day to end time
+        // Handle overnight breaks
+        if (startHour * 60 + startMinute >= endHour * 60 + endMinute) { // Break crosses midnight
+            // If current time is earlier than today's start, it might be the "tomorrow" part of yesterday's break
+            if (now < breakStartCandidateMs) {
+                // Check if it's after yesterday's start
+                const yesterdayStart = breakStartCandidateMs - (24 * 60 * 60 * 1000);
+                if (now >= yesterdayStart && now < breakEndCandidateMs) {
+                    return { break: breakTime, startMs: yesterdayStart, endMs: breakEndCandidateMs };
+                }
+            }
+            // If current time is after today's start, it means the break ends tomorrow
+            breakEndCandidateMs += (24 * 60 * 60 * 1000);
         }
 
-        // Check if current time is within this specific break period
-        if (now.getTime() >= breakStartMs && now.getTime() < breakEndMs) {
-            return breakTime;
+        if (now >= breakStartCandidateMs && now < breakEndCandidateMs) {
+            return { break: breakTime, startMs: breakStartCandidateMs, endMs: breakEndCandidateMs };
         }
     }
     return null;
 }
 
+
 /**
- * Main function called every second to update the display and manage timer state.
+ * Updates the break countdown timer and progress bar animation.
+ * This runs independently of the task pause state.
  */
-function updateMainDisplay() {
-    const breakInfo = getCurrentBreak();
+function updateBreakCountdown() {
+    const now = Date.now();
+    const remainingBreakTime = currentBreakInstanceEndMs - now;
 
-    if (breakInfo) {
-        if (!isCurrentlyInBreak) {
-            isCurrentlyInBreak = true;
-            currentBreakName = breakInfo.name;
+    if (remainingBreakTime <= 0) {
+        clearInterval(breakCountdownIntervalId);
+        breakCountdownTimer.textContent = "00:00:00";
+        breakProgressBar.style.width = '0%';
+        // The `updateMainDisplay` function will handle the full transition out of break state
+        return;
+    }
 
-            if (currentTaskIndex !== -1 && !isPaused && currentTaskStartTime !== 0) {
-                accumulatedTimeBeforeLastStart = calculateElapsedTime();
-                currentTaskStartTime = 0;
-                console.log("Entering break. Task timer paused at:", formatTime(accumulatedTimeBeforeLastStart));
-            }
-            updateBlinkEffect(); // Re-evaluate blinking for break state
-            currentTaskNameDisplay.style.opacity = '1'; // Ensure visible when break
-            currentTaskNameDisplay.textContent = currentBreakName;
-            clockDisplay.textContent = "BREAK";
-            currentTaskNameDisplay.classList.add('on-break');
-            clockDisplay.classList.add('on-break');
-        }
+    breakCountdownTimer.textContent = formatTime(Math.max(0, remainingBreakTime));
+
+    const totalDurationOfThisBreakInstance = currentBreakInstanceEndMs - currentBreakInstanceStartMs;
+    if (totalDurationOfThisBreakInstance > 0) {
+        const progress = Math.max(0, remainingBreakTime / totalDurationOfThisBreakInstance);
+        breakProgressBar.style.width = `${progress * 100}%`;
     } else {
-        if (isCurrentlyInBreak) {
-            isCurrentlyInBreak = false;
-            currentBreakName = '';
-            console.log("Exiting break. Resuming timer logic.");
-
-            if (currentTaskIndex !== -1 && !isPaused) {
-                currentTaskStartTime = Date.now(); // Resume timer from accumulated time
-                console.log("Task resumed from:", formatTime(accumulatedTimeBeforeLastStart));
-            }
-
-            if (currentTaskIndex !== -1 && tasks[currentTaskIndex]) {
-                currentTaskNameDisplay.textContent = tasks[currentTaskIndex].name;
-                currentTaskNameDisplay.style.color = settings.colors.taskSpecific[tasks[currentTaskIndex].id] || settings.colors.textColor;
-            } else {
-                currentTaskNameDisplay.textContent = "No Task Selected";
-            }
-            currentTaskNameDisplay.classList.remove('on-break');
-            clockDisplay.classList.remove('on-break');
-            updateBlinkEffect(); // Re-evaluate blinking for task state
-        }
-
-        const elapsedTime = calculateElapsedTime();
-        clockDisplay.textContent = formatTime(elapsedTime);
+        breakProgressBar.style.width = '0%'; // Handle case of instant break (0 duration)
     }
 }
 
 /**
- * Starts the main loop that updates the display and checks for breaks.
+ * Main function called frequently to update the display and manage timer state,
+ * including break time deduction.
+ */
+function updateMainDisplay() {
+    const now = Date.now();
+    const breakResult = getCurrentBreak(); // Contains { break: object, startMs: number, endMs: number } or null
+
+    // --- Break Time Deduction Logic ---
+    // Deduction from totalTime only happens if a task is active, *not* manually paused,
+    // and currently within a break.
+    if (currentTaskIndex !== -1 && !isPaused && isCurrentlyInBreak && tasks[currentTaskIndex] && previousMainLoopTime > 0) {
+        const timeElapsedSinceLastTick = now - previousMainLoopTime;
+        if (timeElapsedSinceLastTick > 0) {
+            const task = tasks[currentTaskIndex];
+            task.totalTime = Math.max(0, task.totalTime - timeElapsedSinceLastTick); // Prevent negative time
+            // console.log(`Deducting ${formatTime(timeElapsedSinceLastTick)} from task "${task.name}". New net total: ${formatTime(task.totalTime)}`);
+        }
+    }
+
+    previousMainLoopTime = now; // Update for the next tick's deduction calculation
+
+    // --- Break State Management (Visuals and Transitions) ---
+
+    // Scenario 1: Entering a break
+    if (breakResult && !isCurrentlyInBreak) {
+        isCurrentlyInBreak = true;
+        currentBreakName = breakResult.break.name;
+        currentBreakInstanceStartMs = breakResult.startMs;
+        currentBreakInstanceEndMs = breakResult.endMs;
+
+        // Visual updates for entering break
+        currentTaskNameDisplay.textContent = "BREAK";
+        currentTaskNameDisplay.style.opacity = '1';
+        currentTaskNameDisplay.classList.add('on-break');
+        clockDisplay.classList.add('on-break');
+
+        breakInfoDisplay.style.display = 'block';
+        breakCountdownName.textContent = currentBreakName;
+
+        // Start break countdown and animation (runs regardless of task pause state)
+        clearInterval(breakCountdownIntervalId);
+        breakCountdownIntervalId = setInterval(updateBreakCountdown, 100); // Faster update for smoother bar
+        updateBreakCountdown(); // Initial call to set up display immediately
+
+        // Blinking will be controlled by `isPaused`
+        updateBlinkEffect();
+        console.log(`Entering break "${currentBreakName}".`);
+    }
+    // Scenario 2: Exiting a break
+    else if (!breakResult && isCurrentlyInBreak) { // Just exited a break
+        isCurrentlyInBreak = false;
+        clearInterval(breakCountdownIntervalId); // Stop break countdown
+        breakInfoDisplay.style.display = 'none'; // Hide break elements
+        currentBreakInstanceEndMs = 0; // Reset break end time
+        currentBreakInstanceStartMs = 0;
+
+        // Restore task display
+        currentBreakName = '';
+        console.log("Exiting break. Resuming normal timer display.");
+
+        if (currentTaskIndex !== -1 && tasks[currentTaskIndex]) {
+            currentTaskNameDisplay.textContent = tasks[currentTaskIndex].name;
+            currentTaskNameDisplay.style.color = settings.colors.taskSpecific[tasks[currentTaskIndex].id] || settings.colors.textColor;
+        } else {
+            currentTaskNameDisplay.textContent = "No Task Selected";
+        }
+        currentTaskNameDisplay.classList.remove('on-break');
+        clockDisplay.classList.remove('on-break');
+
+        // Blinking will be controlled by `isPaused`
+        updateBlinkEffect();
+    }
+    // Scenario 3: Remaining in a break
+    // Ensure the countdown continues if it was somehow stopped (e.g. by refresh during a break)
+    else if (breakResult && isCurrentlyInBreak && !breakCountdownIntervalId) {
+        clearInterval(breakCountdownIntervalId);
+        breakCountdownIntervalId = setInterval(updateBreakCountdown, 100);
+        updateBreakCountdown();
+    }
+
+
+    // Always update the main clock display based on `isPaused` state
+    const elapsedTime = calculateElapsedTime();
+    clockDisplay.textContent = formatTime(elapsedTime);
+}
+
+/**
+ * Starts the main loop that updates the display and manages timer state.
  */
 function startMainLoop() {
-    if (breakCheckIntervalId) return;
-    breakCheckIntervalId = setInterval(updateMainDisplay, 1000);
-    updateMainDisplay(); // Call immediately to update display
+    if (mainLoopIntervalId) return; // Prevent multiple intervals
+    mainLoopIntervalId = setInterval(updateMainDisplay, 1000); // Main display updates every second
+    updateMainDisplay(); // Initial call to set up the display immediately
 }
 
 /**
  * Pauses the current task timer and stops blinking.
+ * This can now be triggered even during a break.
  */
 function pauseTimer() {
-    if (!isPaused && currentTaskIndex !== -1 && !isCurrentlyInBreak) {
-        accumulatedTimeBeforeLastStart = calculateElapsedTime();
-        currentTaskStartTime = 0;
-        console.log("Manual Pause: Task timer paused at:", formatTime(accumulatedTimeBeforeLastStart));
+    if (currentTaskIndex === -1) {
+        alert("No task is selected to pause.");
+        return;
     }
-    isPaused = true;
-    updateBlinkEffect();
+
+    if (!isPaused) {
+        // When pausing, capture the current raw elapsed time.
+        // `totalTime` deduction stops because `isPaused` becomes true.
+        accumulatedTimeBeforeLastStart = calculateElapsedTime();
+        currentTaskStartTime = 0; // Stop accumulating time from Date.now()
+        console.log("Manual Pause: Raw session time paused at:", formatTime(accumulatedTimeBeforeLastStart));
+    }
+    isPaused = true; // Set the manual pause state
+    updateBlinkEffect(); // Blinking will stop if `isPaused` is true
     currentTaskNameDisplay.style.opacity = '1'; // Ensure text is visible when paused
+    if (timerToggleBtn) {
+        timerToggleBtn.textContent = "Resume Task";
+    }
     saveState();
 }
 
 /**
  * Resumes the current task timer.
+ * This can now be triggered even during a break.
  */
 function resumeTimer() {
-    if (isPaused && currentTaskIndex !== -1 && !isCurrentlyInBreak) {
-        currentTaskStartTime = Date.now();
-        isPaused = false;
-        console.log("Resume: Task timer resumed from:", formatTime(accumulatedTimeBeforeLastStart));
-        updateBlinkEffect();
-        saveState();
+    if (currentTaskIndex === -1) {
+        alert("No task is selected to resume.");
+        return;
     }
+
+    if (isPaused) {
+        currentTaskStartTime = Date.now(); // Start accumulating time from now
+        isPaused = false; // Set the manual resume state
+        console.log("Resume: Raw session time resumed from:", formatTime(accumulatedTimeBeforeLastStart));
+    }
+    updateBlinkEffect(); // Blinking will resume if `isPaused` is false (and not disabled)
+    if (timerToggleBtn) {
+        timerToggleBtn.textContent = "Pause Task";
+    }
+    saveState();
     updateMainDisplay(); // Ensure immediate display update
 }
 
@@ -389,40 +444,49 @@ function renderTaskList() {
  * @param {number} index - The index of the task to set as current.
  */
 function setCurrentTask(index) {
-    // If there was a previously selected task, save its current session time
+    // If there was a previously selected task, its totalTime should already be accurate
+    // due to continuous deduction in updateMainDisplay. No manual calculation needed here for previous task.
     if (currentTaskIndex !== -1 && tasks[currentTaskIndex]) {
-        const prevTask = tasks[currentTaskIndex];
-        // Only add elapsed time if the timer was running before switching
-        if (!isPaused && !isCurrentlyInBreak && currentTaskStartTime !== 0) {
-            const prevTaskSessionTime = calculateElapsedTime();
-            prevTask.totalTime += prevTaskSessionTime;
-            console.log(`Previous task "${prevTask.name}" accumulated total time: ${formatTime(prevTask.totalTime)}`);
-        }
+        console.log(`Switching from task "${tasks[currentTaskIndex].name}". Its net total time is: ${formatTime(tasks[currentTaskIndex].totalTime)}`);
     }
 
     currentTaskIndex = index;
     const newTask = tasks[currentTaskIndex];
 
+    // Reset break display and state if we're manually setting a task
+    if (isCurrentlyInBreak) {
+        isCurrentlyInBreak = false; // Force exit break state
+        clearInterval(breakCountdownIntervalId);
+        breakInfoDisplay.style.display = 'none';
+        currentBreakInstanceEndMs = 0;
+        currentBreakInstanceStartMs = 0;
+        // Restore styling if coming out of break
+        currentTaskNameDisplay.classList.remove('on-break');
+        clockDisplay.classList.remove('on-break');
+    }
+
     if (newTask) {
         currentTaskNameDisplay.textContent = newTask.name;
         currentTaskNameDisplay.style.color = settings.colors.taskSpecific[newTask.id] || settings.colors.textColor;
+        // Update best record display for the NEWLY selected task
         bestRecordDisplay.textContent = newTask.bestRecord === Infinity ? '--:--:--' : formatTime(newTask.bestRecord);
-        accumulatedTimeBeforeLastStart = 0; // Reset accumulated time for the new task
-        currentTaskStartTime = Date.now(); // Start timer for the new task
-        isPaused = false; // New task starts unpaused
+        accumulatedTimeBeforeLastStart = newTask.totalTime; // Load task's current net total time for raw clock display
+        currentTaskStartTime = Date.now(); // Start tracking raw time from now
+        isPaused = false; // New task starts unpaused by default
         console.log(`Started task "${newTask.name}" at:`, new Date(currentTaskStartTime).toLocaleString());
-        timerToggleBtn.textContent = "Pause Task"; // Update button text
+        if (timerToggleBtn) { timerToggleBtn.textContent = "Pause Task"; timerToggleBtn.disabled = false;}
     } else {
         currentTaskNameDisplay.textContent = "No Task Selected";
         bestRecordDisplay.textContent = "--:--:--";
+        clockDisplay.textContent = "00:00:00"; // Reset main clock
         accumulatedTimeBeforeLastStart = 0;
         currentTaskStartTime = 0;
         isPaused = true; // No task selected means timer is paused
-        timerToggleBtn.textContent = "Resume Task"; // Update button text
+        if (timerToggleBtn) { timerToggleBtn.textContent = "Resume Task"; timerToggleBtn.disabled = true; } // Disable when no task
     }
 
     renderTaskList();
-    updateMainDisplay();
+    updateMainDisplay(); // Force update immediately
     updateBlinkEffect(); // Update blinking based on new task state
     saveState();
 }
@@ -460,46 +524,37 @@ async function handleNextTask() {
         return;
     }
 
-    // Pause current timer before confirmation
-    const currentSessionTime = calculateElapsedTime();
-    accumulatedTimeBeforeLastStart = currentSessionTime;
-    currentTaskStartTime = 0; // Stop the timer for this task
-    isPaused = true;
-    updateBlinkEffect(); // Stop blinking immediately
-    currentTaskNameDisplay.style.opacity = '1'; // Ensure visible
-
     const taskToUpdate = tasks[currentTaskIndex];
+    // `taskToUpdate.totalTime` already holds the net time after deductions by `updateMainDisplay`.
+    const finalNetTimeForCurrentTask = taskToUpdate.totalTime;
+
     console.log(`--- Handling Next Task ---`);
-    console.log(`Task: "${taskToUpdate.name}", Current Session Time: ${formatTime(currentSessionTime)}`);
+    console.log(`Task: "${taskToUpdate.name}", Final Net Time: ${formatTime(finalNetTimeForCurrentTask)}`);
 
     const isCompleted = confirm("Is the current task completed?");
 
     if (isCompleted) {
         taskToUpdate.completed = true;
-        taskToUpdate.totalTime += currentSessionTime;
-        if (currentSessionTime > 0 && (currentSessionTime < taskToUpdate.bestRecord || taskToUpdate.bestRecord === Infinity)) {
-            taskToUpdate.bestRecord = currentSessionTime;
+        // Best record should be based on the *net* working time.
+        if (finalNetTimeForCurrentTask > 0 && (finalNetTimeForCurrentTask < taskToUpdate.bestRecord || taskToUpdate.bestRecord === Infinity)) {
+            taskToUpdate.bestRecord = finalNetTimeForCurrentTask;
             console.log(`Updated Best Record for "${taskToUpdate.name}" to: ${formatTime(taskToUpdate.bestRecord)}`);
         }
         const [completedTask] = tasks.splice(currentTaskIndex, 1); // Remove from current position
         tasks.push(completedTask); // Add to end of the list
 
-        // FIX 1: Corrected nextIndex calculation after a task is completed and moved.
-        // If the task removed was the last one in the list, the next task is the first one (index 0).
-        // Otherwise, the task that shifted into the currentTaskIndex position becomes the new current task.
         let nextIndexAfterCompletion;
-        if (tasks.length === 0) { // No tasks left after removal
+        if (tasks.length === 0) {
             nextIndexAfterCompletion = -1;
-        } else if (currentTaskIndex >= tasks.length) { // The task removed was the last one (index N-1), so currentTaskIndex is now out of bounds (N). Wrap to 0.
+        } else if (currentTaskIndex >= tasks.length) {
             nextIndexAfterCompletion = 0;
-        } else { // A task was removed from the middle, the next task is now at the same currentTaskIndex position.
+        } else {
             nextIndexAfterCompletion = currentTaskIndex;
         }
         setCurrentTask(nextIndexAfterCompletion);
 
     } else {
         // Task not completed, just switch to next task in sequence (circularly)
-        taskToUpdate.totalTime += currentSessionTime; // Add session time even if not completed
         taskToUpdate.completed = false; // Ensure it's not marked completed if not confirmed
         const nextIndex = (currentTaskIndex + 1) % tasks.length;
         setCurrentTask(nextIndex);
@@ -512,22 +567,18 @@ async function handleNextTask() {
 
 /**
  * Toggles the visibility of the settings modal.
+ * The timer will continue running when the settings modal is open.
  */
 function toggleSettingsModal() {
     if (settingsModal.style.display === 'flex') {
         settingsModal.style.display = 'none';
-        // When closing settings, resume timer if not in break
-        if (currentTaskIndex !== -1 && !getCurrentBreak()) {
-            resumeTimer();
-        } else {
-            // If no task selected or currently in break, ensure timer stays paused/on break display
-            isPaused = true; // Ensure logic remains consistent
-            updateMainDisplay();
-        }
+        // When closing, simply update the display to reflect any changes made in settings
+        // and ensure the timer is running/paused based on user's manual choice.
+        updateMainDisplay();
         saveState();
     } else {
         settingsModal.style.display = 'flex';
-        pauseTimer(); // Pause timer when opening settings
+        // DO NOT CALL pauseTimer() here. Timer continues to run.
         renderSettings();
         renderSettingsTaskList();
     }
@@ -746,6 +797,7 @@ function applyColors() {
     document.documentElement.style.setProperty('--text-color', settings.colors.textColor);
     document.documentElement.style.setProperty('--border-color', settings.colors.borderColor);
 
+    // Apply color to current task name display only if not in a break (break has its own color)
     if (!isCurrentlyInBreak && currentTaskIndex !== -1 && tasks[currentTaskIndex]) {
         const currentTask = tasks[currentTaskIndex];
         currentTaskNameDisplay.style.color = settings.colors.taskSpecific[currentTask.id] || settings.colors.textColor;
@@ -758,7 +810,9 @@ function applyColors() {
 function updateBlinkEffect() {
     clearInterval(blinkIntervalId); // Clear any existing interval
 
-    if (!settings.disableBlink && !isPaused && !isCurrentlyInBreak) {
+    // Blinking only happens when not disabled and not manually paused
+    // It will still blink during a break IF the timer is running and not manually paused.
+    if (!settings.disableBlink && !isPaused) {
         currentTaskNameDisplay.classList.add('blinking');
         document.documentElement.style.setProperty('--blink-speed', `${settings.blinkSpeed / 1000}s`);
     } else {
@@ -787,6 +841,12 @@ function resetToDefault() {
     isPaused = true;
     isCurrentlyInBreak = false;
     currentBreakName = '';
+    currentBreakInstanceStartMs = 0;
+    currentBreakInstanceEndMs = 0;
+    previousMainLoopTime = 0;
+
+    clearInterval(breakCountdownIntervalId); // Stop break countdown
+    breakInfoDisplay.style.display = 'none'; // Hide break display elements
 
     saveState();
     applyColors();
@@ -805,16 +865,14 @@ document.addEventListener('DOMContentLoaded', () => {
     applyColors();
     renderTaskList();
 
+    // Initial setup for the main task display based on loaded state
     if (tasks.length > 0) {
-        // If currentTaskIndex is invalid, default to the first task
         if (currentTaskIndex < 0 || currentTaskIndex >= tasks.length) {
-            currentTaskIndex = 0;
-            accumulatedTimeBeforeLastStart = 0;
-            currentTaskStartTime = Date.now();
-            isPaused = false; // When defaulting to a new task, start unpaused
+            currentTaskIndex = 0; // Default to first task if index is invalid
+            accumulatedTimeBeforeLastStart = tasks[0].totalTime; // Load its total time
+            currentTaskStartTime = Date.now(); // Start new session
+            isPaused = false;
         }
-        // If tasks exist and currentTaskIndex is valid, its state (isPaused, accumulatedTime) is loaded by loadState().
-        // So no need to force isPaused = false here.
 
         const initialTask = tasks[currentTaskIndex];
         currentTaskNameDisplay.textContent = initialTask.name;
@@ -830,38 +888,62 @@ document.addEventListener('DOMContentLoaded', () => {
         isPaused = true;
     }
 
-    // FIX 3: Initialize timerToggleBtn text based on the loaded `isPaused` state
+    // Initialize timerToggleBtn text and disabled state based on the loaded `isPaused` and `currentTaskIndex`
     if (timerToggleBtn) {
-        timerToggleBtn.textContent = isPaused ? "Resume Task" : "Pause Task";
+        if (currentTaskIndex === -1) {
+            timerToggleBtn.textContent = "Add Task"; // Suggest adding task
+            timerToggleBtn.disabled = true; // Disable if no task to manage
+        } else {
+            // Button text reflects the loaded `isPaused` state
+            timerToggleBtn.textContent = isPaused ? "Resume Task" : "Pause Task";
+            timerToggleBtn.disabled = false; // Always enabled if a task exists
+        }
+    }
+
+    // Set initial break display state on load if currently in a break
+    const initialBreakCheck = getCurrentBreak();
+    if (initialBreakCheck) {
+        isCurrentlyInBreak = true;
+        currentBreakName = initialBreakCheck.break.name;
+        currentBreakInstanceStartMs = initialBreakCheck.startMs;
+        currentBreakInstanceEndMs = initialBreakCheck.endMs;
+
+        // Manually trigger break visuals on load if currently in a break
+        currentTaskNameDisplay.textContent = "BREAK";
+        currentTaskNameDisplay.classList.add('on-break');
+        clockDisplay.classList.add('on-break');
+
+        breakInfoDisplay.style.display = 'block';
+        breakCountdownName.textContent = currentBreakName;
+        clearInterval(breakCountdownIntervalId);
+        breakCountdownIntervalId = setInterval(updateBreakCountdown, 100);
+        updateBreakCountdown();
+    } else {
+        isCurrentlyInBreak = false;
+        breakInfoDisplay.style.display = 'none';
     }
 
     updateBlinkEffect();
-    startMainLoop();
+    startMainLoop(); // This calls updateMainDisplay for initial setup
     updateRealTimeClock();
-    setInterval(updateRealTimeClock, 1000);
+    setInterval(updateRealTimeClock, 1000); // Analog/Digital clock updates
 
     window.addEventListener('beforeunload', saveState);
 });
 
 nextTaskBtn.addEventListener('click', handleNextTask);
 
-if (timerToggleBtn) { // Check if element exists before adding listener
+if (timerToggleBtn) {
     timerToggleBtn.addEventListener('click', () => {
-        if (isCurrentlyInBreak) {
-            alert("Cannot pause/resume timer during a break. Timer will resume automatically after break.");
-            return;
-        }
         if (currentTaskIndex === -1) {
-            alert("Please select or add a task first.");
+            alert("Please select or add a task first to start the timer.");
             return;
         }
-
+        // These calls now directly control the `isPaused` state regardless of break.
         if (isPaused) {
             resumeTimer();
-            timerToggleBtn.textContent = "Pause Task";
         } else {
             pauseTimer();
-            timerToggleBtn.textContent = "Resume Task";
         }
     });
 }
@@ -886,11 +968,11 @@ addBreakTimeBtn.addEventListener('click', () => {
     settings.breakTimes.push({ start: '09:00', end: '10:00', name: 'New Break' });
     renderBreakTimes();
     saveState();
+    updateMainDisplay(); // Re-evaluate break status in case new break is active
 });
 
 breakTimesContainer.addEventListener('change', (e) => {
     const target = e.target;
-    // Use event delegation to catch changes within break time entries
     if (target.classList.contains('break-name') || target.classList.contains('break-start') || target.classList.contains('break-end')) {
         const parentDiv = target.closest('.break-time-entry');
         if (parentDiv) {

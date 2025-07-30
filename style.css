@@ -1,8 +1,16 @@
+:root {
+    --section1-bg-color: #f0f0f0;
+    --section2-bg-color: #e0e0e0;
+    --text-color: #333333;
+    --border-color: #cccccc;
+    --blink-speed: 1s; /* Default blink speed */
+}
+
 body {
     font-family: Arial, sans-serif;
     display: flex;
     justify-content: center;
-    align-items: flex-start; /* Align to top instead of center for longer content */
+    align-items: flex-start;
     min-height: 100vh;
     background-color: #f4f4f4;
     margin: 0;
@@ -12,20 +20,20 @@ body {
 
 .container {
     display: flex;
-    flex-wrap: wrap; /* Allow wrapping for responsiveness */
+    flex-wrap: wrap;
     gap: 20px;
     max-width: 1200px;
     width: 100%;
 }
 
 section {
-    background-color: #fff; /* Default white background for sections */
-    border: 1px solid #ddd;
+    background-color: #fff;
+    border: 1px solid var(--border-color);
     border-radius: 8px;
     padding: 20px;
     box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    flex: 1; /* Allow sections to grow and shrink */
-    min-width: 300px; /* Minimum width for sections */
+    flex: 1;
+    min-width: 300px;
 }
 
 .section-one {
@@ -34,33 +42,29 @@ section {
     align-items: center;
     justify-content: center;
     gap: 20px;
-    background-color: var(--section1-bg-color, #f0f0f0); /* Custom property */
-    color: var(--text-color, #333);
-    border-color: var(--border-color, #ccc);
+    background-color: var(--section1-bg-color);
+    color: var(--text-color);
 }
 
 .section-two {
-    background-color: var(--section2-bg-color, #e0e0e0); /* Custom property */
-    color: var(--text-color, #333);
-    border-color: var(--border-color, #ccc);
+    background-color: var(--section2-bg-color);
+    color: var(--text-color);
 }
 
-/* New Section for Best Record */
 .section-best-record {
-    background-color: #fff; /* Explicitly white as requested */
-    color: var(--text-color, #333);
-    border-color: var(--border-color, #ccc);
-    text-align: center; /* Center the content inside */
-    display: flex; /* Use flex to center vertically */
+    background-color: #fff;
+    color: var(--text-color);
+    border-color: var(--border-color);
+    text-align: center;
+    display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    padding: 20px; /* Adjust padding as needed */
-    flex: 0.5; /* Give it less flex-grow, or define a specific width */
-    min-width: 200px; /* Smaller min-width for this section */
+    padding: 20px;
+    flex: 0.5;
+    min-width: 200px;
 }
 
-/* Clock Styling */
 .clock-container {
     width: 200px;
     height: 200px;
@@ -79,18 +83,55 @@ section {
     color: #007bff;
 }
 
-/* Styling for when it's a break */
+/* Styles for break state (applied to clock and task name when in break) */
 .clock-display.on-break {
     color: #28a745 !important; /* Green for break time */
-    font-size: 2em; /* Adjust font size slightly for "BREAK" */
+    font-size: 2.5em;
 }
 
 #current-task-name.on-break {
-    color: #28a745 !important; /* Green for break name */
+    color: #28a745 !important;
+}
+
+/* Styles for break information display */
+.break-info-display {
+    margin-top: 15px;
+    text-align: center;
+    width: 80%; /* Adjust width as needed */
+}
+
+.break-countdown-name {
+    font-size: 1.5em;
+    font-weight: bold;
+    color: #28a745; /* Green for break */
+    margin-bottom: 5px;
+}
+
+.break-countdown-timer {
+    font-size: 1.2em;
+    font-weight: bold;
+    color: #28a745;
+    margin-bottom: 10px;
+}
+
+.break-progress-bar-container {
+    width: 100%;
+    height: 10px;
+    background-color: #e0e0e0;
+    border-radius: 5px;
+    overflow: hidden;
+    margin: 0 auto; /* Center the bar */
+}
+
+.break-progress-bar {
+    height: 100%;
+    width: 100%; /* Starts full */
+    background-color: #28a745; /* Green */
+    transition: width 0.1s linear; /* Smooth transition for shrinking */
+    transform-origin: left; /* Make it shrink from left */
 }
 
 
-/* Real-Time Analog Clock Styling */
 .real-time-clock-container {
     width: 200px;
     height: 200px;
@@ -177,7 +218,6 @@ section {
 .clock-number.number-10 { top: 28.5%; left: 14.9%; }
 .clock-number.number-11 { top: 15.1%; left: 21.5%; }
 
-/* Current Task Display */
 .current-task-display {
     font-size: 1.8em;
     font-weight: bold;
@@ -186,16 +226,14 @@ section {
     text-align: center;
 }
 
-/* Blinking effect */
 .blinking {
-    animation: blinker var(--blink-speed, 1s) linear infinite;
+    animation: blinker var(--blink-speed) linear infinite;
 }
 
 @keyframes blinker {
     50% { opacity: 0; }
 }
 
-/* Buttons */
 button {
     padding: 10px 20px;
     font-size: 1em;
@@ -212,21 +250,24 @@ button:hover {
     background-color: #0056b3;
 }
 
+button:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+}
+
 .controls {
     display: flex;
     justify-content: center;
     margin-bottom: 15px;
 }
 
-/* Best Record (inside its own section now) */
 .best-record {
-    font-size: 2em; /* Make it larger for its own section */
+    font-size: 2em;
     font-weight: bold;
-    color: #007bff; /* Use primary color for prominence */
+    color: #007bff;
     margin-top: 10px;
 }
 
-/* Task List */
 #task-list {
     list-style: none;
     padding: 0;
@@ -243,13 +284,19 @@ button:hover {
     justify-content: space-between;
     align-items: center;
     font-size: 1.1em;
+    cursor: pointer; /* Indicate it's clickable */
+    transition: background-color 0.2s ease;
+}
+
+#task-list li:hover {
+    background-color: #e6e6e6;
 }
 
 #task-list li.completed {
     opacity: 0.7;
     text-decoration: line-through;
     font-style: italic;
-    background-color: #e6ffe6; /* Light green for completed tasks */
+    background-color: #e6ffe6;
 }
 
 .add-task-container {
@@ -266,17 +313,16 @@ button:hover {
     font-size: 1em;
 }
 
-/* Modal Styling */
 .modal {
-    display: none; /* Hidden by default */
-    position: fixed; /* Stay in place */
-    z-index: 1000; /* Sit on top */
+    display: none;
+    position: fixed;
+    z-index: 1000;
     left: 0;
     top: 0;
-    width: 100%; /* Full width */
-    height: 100%; /* Full height */
-    overflow: auto; /* Enable scroll if needed */
-    background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,0,0,0.4);
     justify-content: center;
     align-items: center;
 }
@@ -339,7 +385,6 @@ button:hover {
     margin-top: 5px;
 }
 
-/* Sortable List in Settings */
 .sortable-list li {
     display: flex;
     align-items: center;
@@ -385,7 +430,7 @@ button:hover {
     width: 100px;
 }
 .break-time-entry input[type="text"].break-name {
-    flex-grow: 1; /* Allow the name input to take available space */
+    flex-grow: 1;
 }
 .remove-break-btn {
     background-color: #dc3545;
@@ -393,14 +438,13 @@ button:hover {
     font-size: 0.9em;
 }
 
-/* Responsive adjustments */
 @media (max-width: 768px) {
     .container {
         flex-direction: column;
     }
 
     section {
-        min-width: unset; /* Remove min-width for smaller screens */
+        min-width: unset;
         width: 100%;
     }
 

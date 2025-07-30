@@ -20,8 +20,20 @@
                 <div class="current-task-display">
                     <span id="current-task-name" class="blinking">No Task Selected</span>
                 </div>
+
+                <!-- Break Information Display -->
+                <div class="break-info-display" id="break-info-display" style="display: none;">
+                    <div class="break-countdown-name" id="break-countdown-name"></div>
+                    <div class="break-countdown-timer" id="break-countdown-timer"></div>
+                    <div class="break-progress-bar-container">
+                        <div class="break-progress-bar" id="break-progress-bar"></div>
+                    </div>
+                </div>
+                <!-- End Break Information Display -->
+
                 <div class="controls">
                     <button id="next-task-btn">Next Task</button>
+                    <button id="timer-toggle-btn">Pause Task</button>
                     <button id="settings-btn">Settings</button>
                 </div>
             </div>
@@ -52,9 +64,9 @@
             </div>
         </section>
 
-        <!-- New Section: Best Record Display -->
+        <!-- Section: Best Record Display -->
         <section class="section-best-record">
-            <h2>Best Record</h2>
+            <h2>Best Record (Net Time)</h2>
             <div class="best-record">
                 <span id="best-record-display">--:--:--</span>
             </div>
