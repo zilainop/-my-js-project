@@ -11,13 +11,13 @@ const INITIAL_DEFAULT_TASKS = [
 const INITIAL_DEFAULT_SETTINGS = {
     blinkSpeed: 500, // ms
     disableBlink: false,
-    // UPDATED: Default break times
+    // UPDATED: Default break times with specific names
     breakTimes: [
-        { start: "05:00", end: "07:00", name: "Nap Break" },
+        { start: "05:00", end: "07:00", name: "Nap break" },
         { start: "09:00", end: "10:00", name: "Free Time" },
-        { start: "13:00", end: "14:00", name: "Free Time" },
-        { start: "17:00", end: "19:00", name: "Coding Break" },
-        { start: "19:00", end: "00:30", name: "Recycle Break" } // Note: 00:30 will correctly interpret as 12:30 AM next day
+        { start: "13:00", end: "14:00", name: "Free Time" }, // 1 PM is 13:00
+        { start: "17:00", end: "19:00", name: "Coading Lessons" }, // 5 PM is 17:00, 7 PM is 19:00
+        { start: "19:00", end: "00:30", name: "Resting Break" } // 7 PM is 19:00, 12:30 AM next day is 00:30
     ],
     colors: {
         section1Bg: '#f0f0f0',
